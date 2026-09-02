@@ -15,7 +15,7 @@ class ServiceData:
         # Enforce module syntax if they accidentally leave ".py" or "/"
 
         raw_entry = data.get("entrypoint", "service_main")
-        self.entrypoint = raw_entry.replace("/", ".").replace(".py", "")
+        self.entrypoint = raw_entry.replace("/", ".").removesuffix(".py")
         self.foreground = data.get("foreground", False)
         self.foreground_service_type = data.get("foreground_service_type")
         self.start_type = data.get("start_type", "START_NOT_STICKY")

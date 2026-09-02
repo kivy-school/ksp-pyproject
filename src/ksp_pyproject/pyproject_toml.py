@@ -1,4 +1,4 @@
-import toml
+import tomlkit
 from .tool_data import ToolData
 from .project import Project
 
@@ -14,10 +14,11 @@ class PyProjectToml:
         self.project = Project(self.data["project"])
         self.tool = ToolData(self.data.get("tool", {}))
 
-    def _load_toml(self) -> dict:
+    def _load_toml(self) -> tomlkit.TOMLDocument:
         with open(self.file_path, "r") as f:
-            return toml.load(f)
+            return tomlkit.parse(f.read())
 
     def save(self):
+        """Write the document back, preserving comments, order and formatting."""
         with open(self.file_path, "w") as f:
-            toml.dump(self.data, f)
+            f.write(tomlkit.dumps(self.data))

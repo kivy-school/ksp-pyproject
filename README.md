@@ -1,2 +1,2 @@
 # ksp-pyproject
-pyproject.toml &lt;-> python data_model
+pyproject.toml <-> python data_model
