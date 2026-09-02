@@ -1,3 +1,4 @@
+from typing import Any
 
 
 class ServiceData:
@@ -10,7 +11,7 @@ class ServiceData:
     notification_text: str
     notification_icon: str
 
-    def __init__(self, data: dict):
+    def __init__(self, data: dict[str, Any]) -> None:
         self.name = data["name"]
         # Enforce module syntax if they accidentally leave ".py" or "/"
 
@@ -28,3 +29,17 @@ class ServiceData:
         self.notification_icon = data.get(
             "notification_icon", "stat_notify_sync"
         )
+
+    def dump(self) -> dict[str, Any]:
+        data: dict[str, Any] = {
+            "name": self.name,
+            "entrypoint": self.entrypoint,
+            "foreground": self.foreground,
+            "start_type": self.start_type,
+            "notification_title": self.notification_title,
+            "notification_text": self.notification_text,
+            "notification_icon": self.notification_icon,
+        }
+        if self.foreground_service_type is not None:
+            data["foreground_service_type"] = self.foreground_service_type
+        return data
