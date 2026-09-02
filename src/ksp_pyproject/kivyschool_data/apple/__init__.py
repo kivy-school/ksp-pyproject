@@ -5,7 +5,7 @@ from .macos import MacosData
 
 class AppleData:
 
-    def __init__(self, ios: IosData | None, macos: MacosData | None):
-        self.ios = ios
-        self.macos = macos
+    def __init__(self, data: dict):
+        self.ios = IosData(data["ios"]) if "ios" in data else None
+        self.macos = MacosData(data["macos"]) if "macos" in data else None
 
