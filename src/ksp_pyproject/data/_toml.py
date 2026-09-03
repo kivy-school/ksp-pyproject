@@ -13,7 +13,7 @@ import tomlkit
 from tomlkit import TOMLDocument
 from tomlkit.items import AoT, Comment, Table, Whitespace
 
-TomlTable = TOMLDocument | Table
+type TomlTable = TOMLDocument | Table
 
 
 def subtable(table: TomlTable, key: str) -> Table:
@@ -54,12 +54,12 @@ def render(key: str, value: Any) -> str:
     return tomlkit.dumps({key: value}).strip()
 
 
-def _body(table: TomlTable) -> list[Any]:
+def _body(table: TomlTable) -> list[tuple[str | None, object]]:
     """The container body, for a TOMLDocument or a Table alike."""
     body = getattr(table, "body", None)
-    if body is not None:
+    if body:
         return body
-    return table.value.body
+    return table.value.body #type: ignore[union-attr]
 
 
 def _comments(table: TomlTable) -> list[str]:

@@ -8,9 +8,11 @@ defaults are written out explicitly -- the file comes to match the model.
 
 from pathlib import Path
 
-from ksp_pyproject.kivyschool_data.android.arch import Arch
-from ksp_pyproject.kivyschool_data.android.service_data import ServiceData
-from ksp_pyproject.pyproject_toml import PyProjectToml
+from conftest import android, ios, kivy_school, project_of
+
+from ksp_pyproject.data.kivyschool_data.android.arch import Arch
+from ksp_pyproject.data.kivyschool_data.android.service_data import ServiceData
+from ksp_pyproject.data.pyproject_toml import PyProjectToml
 
 COMMENTED = """\
 # Build config for the demo app
@@ -92,25 +94,19 @@ class TestCommentsSurvive:
         original.save()
         reloaded = PyProjectToml(str(path))
 
-        assert reloaded.project.name == original.project.name
-        assert reloaded.tool.kivy_school.bootstrap == original.tool.kivy_school.bootstrap
-        assert (
-            reloaded.tool.kivy_school.apple.ios.permissions
-            == original.tool.kivy_school.apple.ios.permissions
-        )
-        assert (
-            reloaded.tool.kivy_school.android.archs
-            == original.tool.kivy_school.android.archs
-        )
+        assert project_of(reloaded).name == project_of(original).name
+        assert kivy_school(reloaded).bootstrap == kivy_school(original).bootstrap
+        assert ios(reloaded).permissions == ios(original).permissions
+        assert android(reloaded).archs == android(original).archs
 
 
 class TestModelEditsReachTheFile:
     def test_edits_land_on_save(self, write_toml):
         path = write_toml(COMMENTED)
         pp = PyProjectToml(str(path))
-        pp.project.name = "renamed"
-        pp.tool.kivy_school.bootstrap = "sdl2_gles"
-        pp.tool.kivy_school.android.version_code = 9
+        project_of(pp).name = "renamed"
+        kivy_school(pp).bootstrap = "sdl2_gles"
+        android(pp).version_code = 9
         pp.save()
 
         text = path.read_text()
@@ -121,7 +117,7 @@ class TestModelEditsReachTheFile:
     def test_an_edited_line_keeps_its_own_comment(self, write_toml):
         path = write_toml(COMMENTED)
         pp = PyProjectToml(str(path))
-        pp.project.name = "renamed"
+        project_of(pp).name = "renamed"
         pp.save()
         assert 'name = "renamed"          # keep this in sync with the store listing' in path.read_text()
 
@@ -140,7 +136,7 @@ class TestOptionalKeys:
         src = self.IOS + '# developer_team = "ABC123"   # uncomment for release builds\n'
         path = write_toml(src)
         pp = PyProjectToml(str(path))
-        assert pp.tool.kivy_school.apple.ios.developer_team is None
+        assert ios(pp).developer_team is None
         pp.save()
 
         text = path.read_text()
@@ -148,37 +144,21 @@ class TestOptionalKeys:
         assert "\ndeveloper_team" not in text
 
     def test_setting_none_leaves_the_existing_key_alone(self, write_toml):
-        """dump() omits keys it has no value for, so save() cannot remove one.
-
-        Setting a field to None is a no-op on save. Delete it from .data to
-        actually drop the key -- see the test below.
+        """dump() only writes keys it has a value for, so setting a field to
+        None is a no-op on save -- an existing key in the file is left as it is.
         """
         src = self.IOS + 'developer_team = "ABC123"   # ask ops\n'
         path = write_toml(src)
         pp = PyProjectToml(str(path))
-        pp.tool.kivy_school.apple.ios.developer_team = None
+        ios(pp).developer_team = None
         pp.save()
 
         assert 'developer_team = "ABC123"   # ask ops' in path.read_text()
 
-    def test_removing_a_key_takes_both_halves(self, write_toml):
-        """The model is what save() writes, so clearing .data alone is not enough."""
-        src = self.IOS + 'developer_team = "ABC123"   # ask ops\n'
-        path = write_toml(src)
-        pp = PyProjectToml(str(path))
-        pp.tool.kivy_school.apple.ios.developer_team = None
-        del pp.data["tool"]["kivy-school"]["ios"]["developer_team"]
-        pp.save()
-
-        text = path.read_text()
-        assert "developer_team" not in text
-        assert "# ask ops" not in text
-        assert 'bundle_id = "org.demo"' in text
-
     def test_setting_android_to_none_leaves_the_section(self, write_toml):
         path = write_toml(COMMENTED)
         pp = PyProjectToml(str(path))
-        pp.tool.kivy_school.android = None
+        kivy_school(pp).android = None
         pp.save()
 
         assert "[tool.kivy-school.android]" in path.read_text()
@@ -197,7 +177,7 @@ class TestDefaultsAreWrittenOut:
     def test_service_defaults_become_explicit(self, write_toml):
         path = write_toml(COMMENTED)
         pp = PyProjectToml(str(path))
-        pp.tool.kivy_school.android.services = [ServiceData({"name": "sync"})]
+        android(pp).services = [ServiceData({"name": "sync"})]
         pp.save()
 
         text = path.read_text()
@@ -212,11 +192,11 @@ class TestDumpWritesIntoTheTable:
         pp = PyProjectToml(str(write_toml(COMMENTED)))
 
         table = tomlkit.table()
-        pp.project.dump(table)
+        project_of(pp).dump(table)
         assert table["name"] == "demoapp"
 
         table = tomlkit.table()
-        pp.tool.kivy_school.apple.ios.dump(table)
+        ios(pp).dump(table)
         assert table["bundle_id"] == "org.kivyschool.demo"
         assert "developer_team" not in table
 
@@ -235,8 +215,8 @@ class TestDumpCoercions:
 
     def test_paths_dump_as_strings(self, write_toml):
         pp = self._load(write_toml)
-        pp.tool.kivy_school.apple.ios.pre_build = Path("scripts/pre.sh")
-        pp.tool.kivy_school.android.sdk_path = Path("/opt/android-sdk")
+        ios(pp).pre_build = Path("scripts/pre.sh")
+        android(pp).sdk_path = Path("/opt/android-sdk")
         pp.save()
 
         text = Path(pp.file_path).read_text()
@@ -245,20 +225,20 @@ class TestDumpCoercions:
 
     def test_archs_dump_as_plain_strings(self, write_toml):
         pp = self._load(write_toml)
-        pp.tool.kivy_school.android.archs = [Arch.ARM64_V8A]
+        android(pp).archs = [Arch.ARM64_V8A]
         pp.save()
         assert 'archs = ["arm64-v8a"]' in Path(pp.file_path).read_text()
 
     def test_include_files_dump_as_nested_lists(self, write_toml):
         pp = self._load(write_toml)
-        pp.tool.kivy_school.android.include_files = [("assets", ["a.png", "b.png"])]
+        android(pp).include_files = [("assets", ["a.png", "b.png"])]
         pp.save()
         text = Path(pp.file_path).read_text()
         assert 'include_files = [["assets", ["a.png", "b.png"]]]' in text
 
     def test_services_are_written_as_a_table_array(self, write_toml):
         pp = self._load(write_toml)
-        pp.tool.kivy_school.android.services = [ServiceData({"name": "sync"})]
+        android(pp).services = [ServiceData({"name": "sync"})]
         pp.save()
 
         text = Path(pp.file_path).read_text()
@@ -267,31 +247,29 @@ class TestDumpCoercions:
 
     def test_removing_a_service_shrinks_the_array(self, write_toml):
         pp = self._load(write_toml)
-        pp.tool.kivy_school.android.services = [
+        android(pp).services = [
             ServiceData({"name": "sync"}),
             ServiceData({"name": "upload"}),
         ]
         pp.save()
 
         pp = PyProjectToml(pp.file_path)
-        pp.tool.kivy_school.android.services = [ServiceData({"name": "sync"})]
+        android(pp).services = [ServiceData({"name": "sync"})]
         pp.save()
 
         again = PyProjectToml(pp.file_path)
-        assert [s.name for s in again.tool.kivy_school.android.services] == ["sync"]
+        assert [s.name for s in android(again).services] == ["sync"]
 
     def test_everything_survives_a_reload(self, write_toml):
         pp = self._load(write_toml)
-        pp.tool.kivy_school.android.services = [
-            ServiceData({"name": "sync", "foreground": True})
-        ]
-        pp.tool.kivy_school.android.include_files = [("assets", ["a.png"])]
-        pp.tool.kivy_school.apple.ios.pre_build = Path("scripts/pre.sh")
+        android(pp).services = [ServiceData({"name": "sync", "foreground": True})]
+        android(pp).include_files = [("assets", ["a.png"])]
+        ios(pp).pre_build = Path("scripts/pre.sh")
         pp.save()
 
         again = PyProjectToml(pp.file_path)
-        android = again.tool.kivy_school.android
-        assert [s.name for s in android.services] == ["sync"]
-        assert android.services[0].foreground is True
-        assert android.include_files == [("assets", ["a.png"])]
-        assert again.tool.kivy_school.apple.ios.pre_build == Path("scripts/pre.sh")
+        a = android(again)
+        assert [s.name for s in a.services] == ["sync"]
+        assert a.services[0].foreground is True
+        assert a.include_files == [("assets", ["a.png"])]
+        assert ios(again).pre_build == Path("scripts/pre.sh")

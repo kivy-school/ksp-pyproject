@@ -28,18 +28,23 @@ class KivySchoolData:
         table["bootstrap"] = self.bootstrap
         if self.app_name is not None:
             table["app_name"] = self.app_name
-
-        self.apple.dump(table)
-        if self.android is not None:
-            self.android.dump(subtable(table, "android"))
+        apple = self.apple
+        if apple:
+            apple.dump(table)
+        android = self.android
+        if android:
+            android.dump(subtable(table, "android"))
 
     def scaffold(self, table: TomlTable, path: str) -> None:
         for key, value in self.EXAMPLE.items():
             comment_default(table, key, value)
-
-        self.apple.scaffold(table, path)
-        if self.android is not None:
-            self.android.scaffold(subtable(table, "android"), f"{path}.android")
+        
+        apple = self.apple
+        if apple:
+            apple.scaffold(table, path)
+        android = self.android
+        if android:
+            android.scaffold(subtable(table, "android"), f"{path}.android")
         else:
             AndroidData.scaffold_missing(table, f"{path}.android")
 

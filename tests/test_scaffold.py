@@ -6,7 +6,7 @@ in a comment, is left alone -- so it is safe to run over and over.
 
 import tomlkit
 
-from ksp_pyproject.pyproject_toml import PyProjectToml
+from ksp_pyproject.data.pyproject_toml import PyProjectToml
 
 FRESH = """\
 [project]

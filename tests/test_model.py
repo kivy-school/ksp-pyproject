@@ -4,15 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from ksp_pyproject.kivyschool_data import KivySchoolData
-from ksp_pyproject.kivyschool_data.android import AndroidData
-from ksp_pyproject.kivyschool_data.android.arch import Arch
-from ksp_pyproject.kivyschool_data.android.service_data import ServiceData
-from ksp_pyproject.kivyschool_data.apple.ios import IosData
-from ksp_pyproject.kivyschool_data.apple.macos import MacosData
-from ksp_pyproject.project import Project
-from ksp_pyproject.pyproject_toml import PyProjectToml
-from ksp_pyproject.tool_data import ToolData
+from ksp_pyproject.data.kivyschool_data import KivySchoolData
+from ksp_pyproject.data.kivyschool_data.android import AndroidData
+from ksp_pyproject.data.kivyschool_data.android.arch import Arch
+from ksp_pyproject.data.kivyschool_data.android.service_data import ServiceData
+from ksp_pyproject.data.kivyschool_data.apple.ios import IosData
+from ksp_pyproject.data.kivyschool_data.apple.macos import MacosData
+from ksp_pyproject.data.project import Project
+from ksp_pyproject.data.pyproject_toml import PyProjectToml
+from ksp_pyproject.data.tool_data import ToolData
 
 MINIMAL = """\
 [project]
@@ -43,6 +43,7 @@ archs = ["arm64-v8a", "x86_64"]
 class TestPyProjectToml:
     def test_loads_project_table(self, write_toml):
         pp = PyProjectToml(str(write_toml(MINIMAL)))
+        assert pp.project is not None
         assert pp.project.name == "demoapp"
 
     def test_tool_absent_leaves_kivy_school_none(self, write_toml):
@@ -54,7 +55,11 @@ class TestPyProjectToml:
         assert ks is not None
         assert ks.app_name == "Demo App"
         assert ks.bootstrap == "sdl2"
+        assert ks.android is not None
+        assert ks.apple is not None
+        assert ks.apple.ios is not None
         assert ks.apple.ios.bundle_id == "org.kivyschool.demo"
+        assert ks.apple.macos is not None
         assert ks.apple.macos.bundle_id == "org.kivyschool.demo.mac"
         assert ks.android.package_name == "org.kivyschool.demo"
 
@@ -92,7 +97,10 @@ class TestKivySchoolData:
 
     def test_apple_sections_are_read_off_the_kivy_school_table(self):
         ks = KivySchoolData({"ios": {"bundle_id": "a"}, "macos": {"bundle_id": "b"}})
+        assert ks.apple is not None
+        assert ks.apple.ios is not None
         assert ks.apple.ios.bundle_id == "a"
+        assert ks.apple.macos is not None
         assert ks.apple.macos.bundle_id == "b"
 
 
