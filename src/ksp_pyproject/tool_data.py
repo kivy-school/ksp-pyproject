@@ -1,5 +1,6 @@
 from typing import Any
 
+from ._toml import TomlTable, subtable
 from .kivyschool_data import KivySchoolData
 
 
@@ -12,8 +13,18 @@ class ToolData:
             KivySchoolData(data["kivy-school"]) if "kivy-school" in data else None
         )
 
-    def dump(self) -> dict[str, Any]:
-        data: dict[str, Any] = {}
-        if self.kivy_school:
-            data["kivy-school"] = self.kivy_school.dump()
-        return data
+    def dump(self, table: TomlTable) -> None:
+        if self.kivy_school is not None:
+            self.kivy_school.dump(subtable(table, "kivy-school"))
+
+    def scaffold(self, table: TomlTable, path: str) -> None:
+        if self.kivy_school is not None:
+            self.kivy_school.scaffold(
+                subtable(table, "kivy-school"), f"{path}.kivy-school"
+            )
+        else:
+            KivySchoolData.scaffold_missing(table, f"{path}.kivy-school")
+
+    @classmethod
+    def scaffold_missing(cls, table: TomlTable, path: str) -> None:
+        KivySchoolData.scaffold_missing(table, f"{path}.kivy-school")

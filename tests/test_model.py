@@ -58,9 +58,11 @@ class TestPyProjectToml:
         assert ks.apple.macos.bundle_id == "org.kivyschool.demo.mac"
         assert ks.android.package_name == "org.kivyschool.demo"
 
-    def test_missing_project_table_raises(self, write_toml):
-        with pytest.raises(KeyError):
-            PyProjectToml(str(write_toml('[tool.other]\nx = 1\n')))
+    def test_project_table_is_optional(self, write_toml):
+        """PEP 621 allows a pyproject.toml with no [project] table at all."""
+        pp = PyProjectToml(str(write_toml('[tool.other]\nx = 1\n')))
+        assert pp.project is None
+        assert pp.tool.kivy_school is None
 
 
 class TestProject:

@@ -1,11 +1,47 @@
 from pathlib import Path
 from typing import Any
 
+from ..._toml import (
+    TomlTable,
+    comment_default,
+    comment_section,
+    table_array,
+)
 from .arch import Arch
 from .service_data import ServiceData
 
 
 class AndroidData:
+    EXAMPLE: dict[str, Any] = {
+        "package_name": "org.example.app",
+        "archs": ["arm64-v8a", "x86_64"],
+        "api": 34,
+        "min_api": 24,
+        "sdk": "34",
+        "ndk": "25.2.9519653",
+        "ndk_api": 24,
+        "sdk_path": "~/.kivyschool/android-sdk",
+        "ndk_path": "~/.kivyschool/android-ndk",
+        "java_path": "~/.kivyschool/jdk",
+        "global_tools": False,
+        "global_tools_path": "~/.kivyschool",
+        "icon": "assets/icon.png",
+        "presplash": "assets/presplash.png",
+        "presplash_color": "#FFFFFF",
+        "presplash_lottie": "assets/presplash.json",
+        "permissions": [],
+        "meta_data": {},
+        "gradle_dependencies": [],
+        "gradle_plugins": [],
+        "include_files": [],
+        "version_code": 1,
+        "version_name": "1.0",
+        "pre_build": "scripts/android_pre_build.py",
+        "post_build": "scripts/android_post_build.py",
+        "byte_compile_python": True,
+        "universal_apk": True,
+    }
+
     package_name: str
     archs: list[Arch]
 
@@ -89,70 +125,81 @@ class AndroidData:
         self.universal_apk = bool(data.get("universal_apk", True))
 
 
-    def dump(self) -> dict[str, Any]:
-        data: dict[str, Any] = {
-            "package_name": self.package_name,
-            "global_tools": self.global_tools,
-            "presplash_color": self.presplash_color,
-            "version_code": self.version_code,
-            "version_name": self.version_name,
-            "byte_compile_python": self.byte_compile_python,
-            "universal_apk": self.universal_apk,
-        }
+    def dump(self, table: TomlTable) -> None:
+        table["package_name"] = self.package_name
+        table["global_tools"] = self.global_tools
+        table["presplash_color"] = self.presplash_color
+        table["version_code"] = self.version_code
+        table["version_name"] = self.version_name
+        table["byte_compile_python"] = self.byte_compile_python
+        table["universal_apk"] = self.universal_apk
 
         if self.archs:
-            data["archs"] = [arch.value for arch in self.archs]
+            table["archs"] = [arch.value for arch in self.archs]
         if self.permissions:
-            data["permissions"] = self.permissions
+            table["permissions"] = self.permissions
         if self.meta_data:
-            data["meta_data"] = self.meta_data
+            table["meta_data"] = self.meta_data
         if self.gradle_dependencies:
-            data["gradle_dependencies"] = self.gradle_dependencies
+            table["gradle_dependencies"] = self.gradle_dependencies
         if self.gradle_plugins:
-            data["gradle_plugins"] = self.gradle_plugins
+            table["gradle_plugins"] = self.gradle_plugins
 
         if self.include_files:
             include_files: list[list[Any]] = []
             for dest, sources in self.include_files:
                 include_files.append([dest, list(sources)])
-            data["include_files"] = include_files
+            table["include_files"] = include_files
 
         if self.services:
-            services: list[dict[str, Any]] = []
-            for service in self.services:
-                services.append(service.dump())
-            data["services"] = services
+            entries = table_array(table, "services", len(self.services))
+            for service, entry in zip(self.services, entries):
+                service.dump(entry)
 
         if self.api is not None:
-            data["api"] = self.api
+            table["api"] = self.api
         if self.min_api is not None:
-            data["min_api"] = self.min_api
+            table["min_api"] = self.min_api
         if self.sdk is not None:
-            data["sdk"] = self.sdk
+            table["sdk"] = self.sdk
         if self.ndk is not None:
-            data["ndk"] = self.ndk
+            table["ndk"] = self.ndk
         if self.ndk_api is not None:
-            data["ndk_api"] = self.ndk_api
+            table["ndk_api"] = self.ndk_api
         if self.sdk_path is not None:
-            data["sdk_path"] = str(self.sdk_path)
+            table["sdk_path"] = str(self.sdk_path)
         if self.ndk_path is not None:
-            data["ndk_path"] = str(self.ndk_path)
+            table["ndk_path"] = str(self.ndk_path)
         if self.java_path is not None:
-            data["java_path"] = str(self.java_path)
+            table["java_path"] = str(self.java_path)
         if self.global_tools_path is not None:
-            data["global_tools_path"] = str(self.global_tools_path)
+            table["global_tools_path"] = str(self.global_tools_path)
         if self.icon is not None:
-            data["icon"] = self.icon
+            table["icon"] = self.icon
         if self.presplash is not None:
-            data["presplash"] = self.presplash
+            table["presplash"] = self.presplash
         if self.presplash_lottie is not None:
-            data["presplash_lottie"] = self.presplash_lottie
+            table["presplash_lottie"] = self.presplash_lottie
         if self.pre_build is not None:
-            data["pre_build"] = str(self.pre_build)
+            table["pre_build"] = str(self.pre_build)
         if self.post_build is not None:
-            data["post_build"] = str(self.post_build)
+            table["post_build"] = str(self.post_build)
 
-        return data
+    def scaffold(self, table: TomlTable, path: str) -> None:
+        for key, value in self.EXAMPLE.items():
+            comment_default(table, key, value)
+
+        if self.services:
+            entries = table_array(table, "services", len(self.services))
+            for service, entry in zip(self.services, entries):
+                service.scaffold(entry, f"{path}.services")
+        else:
+            ServiceData.scaffold_missing(table, f"{path}.services")
+
+    @classmethod
+    def scaffold_missing(cls, table: TomlTable, path: str) -> None:
+        comment_section(table, path, cls.EXAMPLE)
+        ServiceData.scaffold_missing(table, f"{path}.services")
 
     def kivyschool_root(self, working_dir: Path) -> Path:
         """Root for kivy-school managed tools/caches.

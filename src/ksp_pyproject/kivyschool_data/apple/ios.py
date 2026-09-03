@@ -1,8 +1,23 @@
 from pathlib import Path
 from typing import Any
 
+from ..._toml import TomlTable, comment_default, comment_section
+
 
 class IosData:
+    EXAMPLE: dict[str, Any] = {
+        "bundle_id": "org.example.app",
+        "info_plist": {},
+        "entitlements": {},
+        "permissions": [],
+        "frameworks": [],
+        "site_frameworks": [],
+        "developer_team": "ABCDE12345",
+        "minimum_deployment": "13.0",
+        "pre_build": "scripts/ios_pre_build.py",
+        "post_build": "scripts/ios_post_build.py",
+    }
+
     bundle_id: str
     info_plist: dict[str, Any]
     entitlements: dict[str, Any]
@@ -26,26 +41,31 @@ class IosData:
         self.pre_build = Path(data.get("pre_build")) if "pre_build" in data else None  # type: ignore
         self.post_build = Path(data.get("post_build")) if "post_build" in data else None  # type: ignore
 
-    def dump(self) -> dict[str, Any]:
-        data: dict[str, Any] = {
-            "bundle_id": self.bundle_id,
-        }
+    def dump(self, table: TomlTable) -> None:
+        table["bundle_id"] = self.bundle_id
         if self.info_plist:
-            data["info_plist"] = self.info_plist
+            table["info_plist"] = self.info_plist
         if self.entitlements:
-            data["entitlements"] = self.entitlements
+            table["entitlements"] = self.entitlements
         if self.permissions:
-            data["permissions"] = self.permissions
+            table["permissions"] = self.permissions
         if self.frameworks:
-            data["frameworks"] = self.frameworks
+            table["frameworks"] = self.frameworks
         if self.site_frameworks:
-            data["site_frameworks"] = self.site_frameworks
+            table["site_frameworks"] = self.site_frameworks
         if self.developer_team is not None:
-            data["developer_team"] = self.developer_team
+            table["developer_team"] = self.developer_team
         if self.minimum_deployment is not None:
-            data["minimum_deployment"] = self.minimum_deployment
+            table["minimum_deployment"] = self.minimum_deployment
         if self.pre_build is not None:
-            data["pre_build"] = str(self.pre_build)
+            table["pre_build"] = str(self.pre_build)
         if self.post_build is not None:
-            data["post_build"] = str(self.post_build)
-        return data
+            table["post_build"] = str(self.post_build)
+
+    def scaffold(self, table: TomlTable, path: str) -> None:
+        for key, value in self.EXAMPLE.items():
+            comment_default(table, key, value)
+
+    @classmethod
+    def scaffold_missing(cls, table: TomlTable, path: str) -> None:
+        comment_section(table, path, cls.EXAMPLE)

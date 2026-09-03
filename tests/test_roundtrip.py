@@ -205,22 +205,27 @@ class TestDefaultsAreWrittenOut:
         assert 'start_type = "START_NOT_STICKY"' in text
 
 
-class TestDumpReturnsPlainDicts:
-    def test_each_class_returns_its_own_dict(self, write_toml):
+class TestDumpWritesIntoTheTable:
+    def test_each_class_writes_its_own_keys(self, write_toml):
+        import tomlkit
+
         pp = PyProjectToml(str(write_toml(COMMENTED)))
-        assert pp.project.dump() == {"name": "demoapp"}
 
-        ios = pp.tool.kivy_school.apple.ios.dump()
-        assert ios["bundle_id"] == "org.kivyschool.demo"
-        assert "developer_team" not in ios
+        table = tomlkit.table()
+        pp.project.dump(table)
+        assert table["name"] == "demoapp"
 
-        assert set(pp.tool.dump()) == {"kivy-school"}
-        assert pp.dump()["project"] == {"name": "demoapp"}
+        table = tomlkit.table()
+        pp.tool.kivy_school.apple.ios.dump(table)
+        assert table["bundle_id"] == "org.kivyschool.demo"
+        assert "developer_team" not in table
 
-    def test_dump_does_not_touch_the_document(self, write_toml):
+    def test_dump_leaves_the_file_alone_until_save(self, write_toml):
+        import tomlkit
+
         path = write_toml(COMMENTED)
         pp = PyProjectToml(str(path))
-        pp.dump()
+        pp.dump(tomlkit.document())
         assert path.read_text() == COMMENTED
 
 

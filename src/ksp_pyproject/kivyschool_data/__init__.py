@@ -1,10 +1,15 @@
 from typing import Any
 
+from .._toml import TomlTable, comment_default, comment_section, subtable
 from .android import AndroidData
 from .apple import AppleData
 
 
 class KivySchoolData:
+    EXAMPLE: dict[str, Any] = {
+        "app_name": "My App",
+        "bootstrap": "kivy",
+    }
 
     app_name: str | None
     android: AndroidData | None
@@ -19,13 +24,27 @@ class KivySchoolData:
         )
         self.bootstrap = data.get("bootstrap", "kivy")
 
-    def dump(self) -> dict[str, Any]:
-        data: dict[str, Any] = {
-            "bootstrap": self.bootstrap,
-        }
-        if self.app_name:
-            data["app_name"] = self.app_name
-        data.update(self.apple.dump())
-        if self.android:
-            data["android"] = self.android.dump()
-        return data
+    def dump(self, table: TomlTable) -> None:
+        table["bootstrap"] = self.bootstrap
+        if self.app_name is not None:
+            table["app_name"] = self.app_name
+
+        self.apple.dump(table)
+        if self.android is not None:
+            self.android.dump(subtable(table, "android"))
+
+    def scaffold(self, table: TomlTable, path: str) -> None:
+        for key, value in self.EXAMPLE.items():
+            comment_default(table, key, value)
+
+        self.apple.scaffold(table, path)
+        if self.android is not None:
+            self.android.scaffold(subtable(table, "android"), f"{path}.android")
+        else:
+            AndroidData.scaffold_missing(table, f"{path}.android")
+
+    @classmethod
+    def scaffold_missing(cls, table: TomlTable, path: str) -> None:
+        comment_section(table, path, cls.EXAMPLE)
+        AppleData.scaffold_missing(table, path)
+        AndroidData.scaffold_missing(table, f"{path}.android")

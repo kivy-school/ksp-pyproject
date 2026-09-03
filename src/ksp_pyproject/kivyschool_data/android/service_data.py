@@ -1,7 +1,20 @@
 from typing import Any
 
+from ..._toml import TomlTable, comment_default, comment_table_array
+
 
 class ServiceData:
+    EXAMPLE: dict[str, Any] = {
+        "name": "sync",
+        "entrypoint": "service_main",
+        "foreground": False,
+        "foreground_service_type": "dataSync",
+        "start_type": "START_NOT_STICKY",
+        "notification_title": "sync is running",
+        "notification_text": "Background task active",
+        "notification_icon": "stat_notify_sync",
+    }
+
     name: str
     entrypoint: str
     foreground: bool
@@ -30,16 +43,21 @@ class ServiceData:
             "notification_icon", "stat_notify_sync"
         )
 
-    def dump(self) -> dict[str, Any]:
-        data: dict[str, Any] = {
-            "name": self.name,
-            "entrypoint": self.entrypoint,
-            "foreground": self.foreground,
-            "start_type": self.start_type,
-            "notification_title": self.notification_title,
-            "notification_text": self.notification_text,
-            "notification_icon": self.notification_icon,
-        }
+    def dump(self, table: TomlTable) -> None:
+        table["name"] = self.name
+        table["entrypoint"] = self.entrypoint
+        table["foreground"] = self.foreground
+        table["start_type"] = self.start_type
+        table["notification_title"] = self.notification_title
+        table["notification_text"] = self.notification_text
+        table["notification_icon"] = self.notification_icon
         if self.foreground_service_type is not None:
-            data["foreground_service_type"] = self.foreground_service_type
-        return data
+            table["foreground_service_type"] = self.foreground_service_type
+
+    def scaffold(self, table: TomlTable, path: str) -> None:
+        for key, value in self.EXAMPLE.items():
+            comment_default(table, key, value)
+
+    @classmethod
+    def scaffold_missing(cls, table: TomlTable, path: str) -> None:
+        comment_table_array(table, path, cls.EXAMPLE)

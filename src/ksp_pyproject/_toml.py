@@ -1,16 +1,17 @@
-"""Applying a plain dict onto a tomlkit document without losing its formatting.
+"""tomlkit primitives the data classes lean on.
 
-Each data class returns its own dict from ``dump()``. Assigning one of those
-dicts straight onto a table would replace the node and take every comment in it
-along with it, so ``merge`` walks the dict and writes leaves individually --
-tomlkit keeps a line's comment and alignment across an in-place value swap.
+Not a serialisation layer: every class states its own keys, its own example
+values and its own child sections. These cover only what tomlkit itself makes
+awkward -- creating a sub-table, sizing an array of tables, and writing a
+commented-out line without turning it into a real key.
 """
 
+import re
 from typing import Any
 
 import tomlkit
 from tomlkit import TOMLDocument
-from tomlkit.items import AoT, Table
+from tomlkit.items import AoT, Comment, Table, Whitespace
 
 TomlTable = TOMLDocument | Table
 
@@ -25,39 +26,133 @@ def subtable(table: TomlTable, key: str) -> Table:
     return created
 
 
-def merge(table: TomlTable, data: dict[str, Any]) -> None:
-    """Write ``data`` onto ``table``, disturbing as little as possible.
+def table_array(table: TomlTable, key: str, length: int) -> AoT:
+    """Return ``table[key]`` as an array of tables holding exactly ``length`` entries.
 
-    ``None`` drops a key, since TOML has no null. Dropping takes the line's
-    inline comment with it and leaves a commented-out line alone (tomlkit never
-    saw that as a key). A standalone comment on the line *above* a dropped key
-    stays put rather than being guessed at -- it may describe the section.
+    Existing entries are kept and reused so their comments survive; surplus ones
+    are dropped and missing ones appended.
     """
-    for key, value in data.items():
-        if value is None:
-            table.pop(key, None)
-        elif isinstance(value, dict):
-            merge(subtable(table, key), value)
-        elif isinstance(value, list) and value and all(isinstance(v, dict) for v in value):
-            _merge_table_array(table, key, value)
-        else:
-            table[key] = value
-
-
-def _merge_table_array(table: TomlTable, key: str, rows: list[dict[str, Any]]) -> None:
-    """Reuse the existing array-of-tables entries so their comments survive."""
     entries: AoT | None = table.get(key)
     if entries is None:
         entries = tomlkit.aot()
         table[key] = entries
 
-    while len(entries) > len(rows):
+    while len(entries) > length:
         del entries[-1]
+    while len(entries) < length:
+        entries.append(tomlkit.table())
 
-    for index, row in enumerate(rows):
-        if index < len(entries):
-            merge(entries[index], row)
-        else:
-            entry = tomlkit.table()
-            merge(entry, row)
-            entries.append(entry)
+    return entries
+
+
+def render(key: str, value: Any) -> str:
+    """Render ``key = value`` the way TOML would write it, on one line."""
+    if isinstance(value, dict):
+        inline = tomlkit.inline_table()
+        inline.update(value)
+        value = inline
+    return tomlkit.dumps({key: value}).strip()
+
+
+def _body(table: TomlTable) -> list[Any]:
+    """The container body, for a TOMLDocument or a Table alike."""
+    body = getattr(table, "body", None)
+    if body is not None:
+        return body
+    return table.value.body
+
+
+def _comments(table: TomlTable) -> list[str]:
+    """Every comment attached to this table, standalone or trailing a key."""
+    found: list[str] = []
+    for _, item in _body(table):
+        if isinstance(item, Whitespace):
+            # .trivia raises on these rather than being absent
+            continue
+        if isinstance(item, Comment):
+            found.append(item.trivia.comment)
+            continue
+        trivia = getattr(item, "trivia", None)
+        if trivia is not None and trivia.comment:
+            found.append(trivia.comment)
+    return found
+
+
+def is_mentioned(table: TomlTable, name: str) -> bool:
+    """True if ``name`` is a live key here, or already named in any comment.
+
+    Matched on word boundaries, so ``ios`` is not found inside ``scenarios``.
+    Keeps scaffolding idempotent and stops it second-guessing a line the user
+    deliberately commented out.
+    """
+    if name in table:
+        return True
+
+    pattern = re.compile(rf"\b{re.escape(name)}\b")
+    for comment in _comments(table):
+        if pattern.search(comment):
+            return True
+
+    return False
+
+
+_HASH = re.compile(r"^#+\s*")
+
+
+def _all_comments(table: TomlTable) -> list[str]:
+    """Comments on this table and on every table nested under it.
+
+    Reparsing moves a trailing comment into the body of whichever table it
+    follows, so a section header written at the end of a document turns up
+    inside the last table rather than at the root.
+    """
+    found = list(_comments(table))
+    for _, item in _body(table):
+        if isinstance(item, Table):
+            found.extend(_all_comments(item))
+        elif isinstance(item, AoT):
+            for entry in item:
+                found.extend(_all_comments(entry))
+    return found
+
+
+def declares_section(table: TomlTable, path: str) -> bool:
+    """True if ``path`` already exists as a section, or as a commented-out header."""
+    if path.rsplit(".", 1)[-1] in table:
+        return True
+
+    headers = {f"[{path}]", f"[[{path}]]"}
+    for comment in _all_comments(table):
+        if _HASH.sub("", comment).strip() in headers:
+            return True
+
+    return False
+
+
+def comment_default(table: TomlTable, key: str, value: Any) -> None:
+    """Document an unset optional as ``# key = value``."""
+    if is_mentioned(table, key):
+        return
+    table.add(tomlkit.comment(render(key, value)))
+
+
+def comment_section(table: TomlTable, path: str, values: dict[str, Any]) -> None:
+    """Document a missing section as a commented-out ``[path]`` block."""
+    if declares_section(table, path):
+        return
+
+    table.add(tomlkit.nl())
+    table.add(tomlkit.comment(f"[{path}]"))
+    for key, value in values.items():
+        table.add(tomlkit.comment(render(key, value)))
+
+
+def comment_table_array(table: TomlTable, path: str, values: dict[str, Any]) -> None:
+    """Document a missing array of tables as a commented-out ``[[path]]`` block."""
+    if declares_section(table, path):
+        return
+
+    table.add(tomlkit.nl())
+    table.add(tomlkit.comment(f"[[{path}]]"))
+    for key, value in values.items():
+        table.add(tomlkit.comment(render(key, value)))
