@@ -28,7 +28,7 @@ class KivySchoolProtocol(Protocol):
 class ToolProtocol(Protocol):
 
     @property
-    def kivy_school(self) -> KivySchoolProtocol | None: ...
+    def kivy_school(self) -> KivySchoolProtocol: ...
 
 
 

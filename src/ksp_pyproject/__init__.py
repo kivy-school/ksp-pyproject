@@ -1,1 +1,0 @@
-from .data import kivyschool_data, project, pyproject_toml, tool_data

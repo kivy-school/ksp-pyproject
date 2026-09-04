@@ -9,14 +9,14 @@ class PyProjectToml:
 
     file_path: str
     data: tomlkit.TOMLDocument
-    project: Project | None
+    project: Project
     tool: ToolData
 
     def __init__(self, file_path: str) -> None:
         self.file_path = file_path
         self.data = self._load_toml()
         self.project = (
-            Project(self.data["project"]) if "project" in self.data else None
+            Project(self.data["project"])
         )
         self.tool = ToolData(self.data.get("tool", {}))
 
